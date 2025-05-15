@@ -1,4 +1,4 @@
+transformers>=4.0.0
+sentencepiece
 streamlit
 scikit-learn
-transformers
-sentencepiece
