@@ -1,6 +1,6 @@
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
 
-# Use a lighter paraphrasing model
+# Use a lighter paraphrasing model that is more compatible with Streamlit Cloud
 MODEL_NAME = "ramsrigouthamg/t5_paraphraser"
 
 try:
@@ -17,6 +17,5 @@ try:
             return f"⚠️ Paraphrasing failed: {str(e)}"
 
 except Exception as e:
-    # If model fails to load
     def paraphrase_text(text):
         return "⚠️ Could not load paraphrasing model. Try again later."
