@@ -1,11 +1,22 @@
-from transformers import pipeline
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
 
-# Load once
-paraphraser = pipeline("text2text-generation", model="Vamsi/T5-Paraphrase-Paws")
+# Use a lighter paraphrasing model
+MODEL_NAME = "ramsrigouthamg/t5_paraphraser"
 
-def paraphrase_text(text):
-    try:
-        response = paraphraser(f"paraphrase: {text}", max_length=100, num_return_sequences=1, do_sample=True)
-        return response[0]['generated_text']
-    except Exception as e:
-        return f"Error during paraphrasing: {str(e)}"
+try:
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+    model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME)
+    paraphraser = pipeline("text2text-generation", model=model, tokenizer=tokenizer)
+
+    def paraphrase_text(text):
+        input_text = "paraphrase: " + text + " </s>"
+        try:
+            result = paraphraser(input_text, max_length=100, num_return_sequences=1, do_sample=True)
+            return result[0]['generated_text']
+        except Exception as e:
+            return f"⚠️ Paraphrasing failed: {str(e)}"
+
+except Exception as e:
+    # If model fails to load
+    def paraphrase_text(text):
+        return "⚠️ Could not load paraphrasing model. Try again later."
