@@ -57,7 +57,7 @@ if st.button("🔍 Check for Plagiarism"):
     if text1.strip() and text2.strip():
         score = get_similarity(text1, text2)
         st.success(f"Similarity Score: **{score}%**")
-        if score > 50:
+        if score > 10:
             st.warning("High similarity detected. Here's a paraphrased version:")
             st.subheader("💡 Paraphrased Text")
             st.write(paraphrase_text_gemini(text2))
