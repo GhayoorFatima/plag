@@ -1,11 +1,15 @@
 import streamlit as st
+
+# ✅ Must be the first Streamlit command
+st.set_page_config(page_title="AI Plagiarism & Paraphrasing", layout="wide")
+
+# Other imports
 from PyPDF2 import PdfReader
 import docx
 from difflib import SequenceMatcher
-
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
 
-# Load paraphrasing model (t5-small)
+# Load paraphrasing model
 @st.cache_resource
 def load_paraphraser():
     model_name = "t5-small"
@@ -43,13 +47,11 @@ def extract_text_from_file(uploaded_file):
     else:
         return "⚠️ Unsupported file format. Please upload a PDF, DOCX, or TXT file."
 
-# Streamlit UI
-st.set_page_config(page_title="AI Plagiarism & Paraphrasing", layout="wide")
+# Title
 st.title("🧠 AI Plagiarism Checker & Paraphrasing Tool")
-
 st.markdown("Upload files or paste text to check for plagiarism or paraphrase content.")
 
-# Input Section
+# Plagiarism Section
 st.header("📘 Plagiarism Checker")
 col1, col2 = st.columns(2)
 
@@ -67,11 +69,12 @@ if st.button("🔍 Check for Plagiarism"):
         st.success(f"Similarity Score: **{score}%**")
         if score > 50:
             st.warning("High similarity detected. Here's a paraphrased version:")
+            st.subheader("💡 Paraphrased Text")
             st.write(paraphrase_text(text2))
     else:
         st.error("Both text inputs are required to check for plagiarism.")
 
-# Paraphrasing Section
+# Paraphrasing Tool
 st.markdown("---")
 st.header("✍️ Paraphrasing Tool")
 
