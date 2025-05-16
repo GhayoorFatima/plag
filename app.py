@@ -11,7 +11,7 @@ import google.generativeai as genai
 # Configure Gemini API
 GOOGLE_API_KEY = "AIzaSyCOzTWV41mYCfOva_NBI2if_M8XlKD6gOA"  # Replace with your actual API key
 genai.configure(api_key=GOOGLE_API_KEY)
-gemini_model = genai.GenerativeModel("gemini-pro")
+gemini_model = genai.GenerativeModel("gemini 1.5 flash latest")
 
 # Gemini paraphrasing
 def paraphrase_text_gemini(text):
