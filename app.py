@@ -1,57 +1,47 @@
 import streamlit as st
 
-# ✅ Must be the first Streamlit command
+# Must be first
 st.set_page_config(page_title="AI Plagiarism & Paraphrasing", layout="wide")
 
-# Other imports
 from PyPDF2 import PdfReader
 import docx
 from difflib import SequenceMatcher
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
+import google.generativeai as genai
 
-# Load paraphrasing model
-@st.cache_resource
-def load_paraphraser():
-    model_name = "t5-small"
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
-    return pipeline("text2text-generation", model=model, tokenizer=tokenizer)
+# Configure Gemini API
+GOOGLE_API_KEY = "YOUR_API_KEY_HERE"  # Replace with your actual API key
+genai.configure(api_key=GOOGLE_API_KEY)
+gemini_model = genai.GenerativeModel("gemini-pro")
 
-paraphraser = load_paraphraser()
-
-# Paraphrasing function
-def paraphrase_text(text):
-    if not text.strip():
-        return "⚠️ Please enter valid text to paraphrase."
+# Gemini paraphrasing
+def paraphrase_text_gemini(text):
     try:
-        input_text = "paraphrase: " + text + " </s>"
-        result = paraphraser(input_text, max_length=60, num_return_sequences=1, do_sample=True)
-        return result[0]['generated_text']
+        prompt = f"Paraphrase the following text in clear academic English:\n\n{text}"
+        response = gemini_model.generate_content(prompt)
+        return response.text.strip()
     except Exception as e:
-        return f"⚠️ Paraphrasing failed: {str(e)}"
+        return f"⚠️ Paraphrasing failed: {e}"
 
 # Similarity checker
 def get_similarity(text1, text2):
     return round(SequenceMatcher(None, text1, text2).ratio() * 100, 2)
 
-# File text extraction
+# Extract text from uploaded file
 def extract_text_from_file(uploaded_file):
     if uploaded_file.name.endswith(".pdf"):
         reader = PdfReader(uploaded_file)
         return "\n".join(page.extract_text() for page in reader.pages if page.extract_text())
     elif uploaded_file.name.endswith(".docx"):
         doc = docx.Document(uploaded_file)
-        return "\n".join([para.text for para in doc.paragraphs])
+        return "\n".join(para.text for para in doc.paragraphs)
     elif uploaded_file.name.endswith(".txt"):
         return uploaded_file.read().decode("utf-8")
     else:
         return "⚠️ Unsupported file format. Please upload a PDF, DOCX, or TXT file."
 
-# Title
-st.title("🧠 AI Plagiarism Checker & Paraphrasing Tool")
-st.markdown("Upload files or paste text to check for plagiarism or paraphrase content.")
+# UI
+st.title("🧠 AI Plagiarism Checker & Paraphrasing Tool (Gemini-Powered)")
 
-# Plagiarism Section
 st.header("📘 Plagiarism Checker")
 col1, col2 = st.columns(2)
 
@@ -70,16 +60,19 @@ if st.button("🔍 Check for Plagiarism"):
         if score > 50:
             st.warning("High similarity detected. Here's a paraphrased version:")
             st.subheader("💡 Paraphrased Text")
-            st.write(paraphrase_text(text2))
+            st.write(paraphrase_text_gemini(text2))
     else:
-        st.error("Both text inputs are required to check for plagiarism.")
+        st.error("Both inputs required.")
 
-# Paraphrasing Tool
+# Paraphrasing Section
 st.markdown("---")
 st.header("✍️ Paraphrasing Tool")
 
-text_to_paraphrase = st.text_area("Enter text to paraphrase", height=200)
+user_input = st.text_area("Enter text to paraphrase using Gemini", height=200)
 if st.button("♻️ Generate Paraphrased Text"):
-    output = paraphrase_text(text_to_paraphrase)
-    st.subheader("🔁 Paraphrased Output")
-    st.write(output)
+    if user_input.strip():
+        output = paraphrase_text_gemini(user_input)
+        st.subheader("🔁 Paraphrased Output")
+        st.write(output)
+    else:
+        st.warning("Please enter text to paraphrase.")
