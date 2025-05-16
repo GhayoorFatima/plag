@@ -9,7 +9,7 @@ from difflib import SequenceMatcher
 import google.generativeai as genai
 
 # Configure Gemini API
-GOOGLE_API_KEY = "YOUR_API_KEY_HERE"  # Replace with your actual API key
+GOOGLE_API_KEY = "AIzaSyCOzTWV41mYCfOva_NBI2if_M8XlKD6gOA"  # Replace with your actual API key
 genai.configure(api_key=GOOGLE_API_KEY)
 gemini_model = genai.GenerativeModel("gemini-pro")
 
