@@ -4,3 +4,4 @@ transformers
 sentencepiece
 PyPDF2
 python-docx
+torch
