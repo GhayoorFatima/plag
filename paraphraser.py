@@ -1,6 +1,6 @@
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
 
-MODEL_NAME = "ramsrigouthamg/t5_paraphraser"
+MODEL_NAME = "t5-small"  # Lightweight and fast
 
 try:
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
@@ -10,7 +10,7 @@ try:
     def paraphrase_text(text):
         input_text = "paraphrase: " + text + " </s>"
         try:
-            result = paraphraser(input_text, max_length=100, num_return_sequences=1, do_sample=True)
+            result = paraphraser(input_text, max_length=60, num_return_sequences=1, do_sample=True)
             return result[0]['generated_text']
         except Exception as e:
             return f"⚠️ Paraphrasing failed: {str(e)}"
