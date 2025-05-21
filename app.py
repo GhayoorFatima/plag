@@ -1,12 +1,14 @@
 import streamlit as st
 from PyPDF2 import PdfReader
 import docx
+import math
+from collections import Counter
 
 # Set up Streamlit page
-st.set_page_config(page_title="AI Plagiarism Checker (Scratch Version)", layout="wide")
-st.title("🧠 AI Plagiarism Checker (From Scratch)")
+st.set_page_config(page_title="AI Plagiarism Checker (Cosine Similarity)", layout="wide")
+st.title("🧠 AI Plagiarism Checker using Cosine Similarity (From Scratch)")
 
-# Text extraction function
+# Text extraction
 def extract_text_from_file(uploaded_file):
     if uploaded_file.name.endswith(".pdf"):
         reader = PdfReader(uploaded_file)
@@ -19,24 +21,38 @@ def extract_text_from_file(uploaded_file):
     else:
         return ""
 
-# Clean and tokenize text
+# Preprocessing and vectorization
 def tokenize(text):
     text = text.lower()
     words = ''.join([c if c.isalnum() else ' ' for c in text]).split()
-    return set(words)
+    return words
 
-# Calculate Jaccard similarity
-def get_jaccard_similarity(text1, text2):
+def compute_cosine_similarity(text1, text2):
     words1 = tokenize(text1)
     words2 = tokenize(text2)
-    intersection = words1.intersection(words2)
-    union = words1.union(words2)
-    if not union:
+
+    freq1 = Counter(words1)
+    freq2 = Counter(words2)
+
+    # Vocabulary union
+    all_words = set(freq1.keys()).union(set(freq2.keys()))
+
+    # Create vectors
+    vec1 = [freq1[word] for word in all_words]
+    vec2 = [freq2[word] for word in all_words]
+
+    # Dot product and norms
+    dot_product = sum(a * b for a, b in zip(vec1, vec2))
+    norm1 = math.sqrt(sum(a * a for a in vec1))
+    norm2 = math.sqrt(sum(b * b for b in vec2))
+
+    if norm1 == 0 or norm2 == 0:
         return 0.0
-    similarity = len(intersection) / len(union)
+
+    similarity = dot_product / (norm1 * norm2)
     return round(similarity * 100, 2)
 
-# UI - Input Section
+# UI
 st.header("📘 Upload or Paste Text")
 col1, col2 = st.columns(2)
 
@@ -48,33 +64,19 @@ with col2:
     uploaded_file2 = st.file_uploader("Upload Submitted Document", type=["pdf", "docx", "txt"], key="file2")
     text2 = extract_text_from_file(uploaded_file2) if uploaded_file2 else st.text_area("Or paste Submitted Text", height=250)
 
-# User defines threshold and ground truth
+# Threshold slider
 st.markdown("---")
-st.subheader("📏 Plagiarism Threshold & Ground Truth")
-
 threshold = st.slider("Set plagiarism threshold (%)", min_value=10, max_value=100, value=50, step=5)
-ground_truth = st.radio("Is the submitted text truly plagiarized (ground truth)?", ["Yes", "No"])
 
-# Plagiarism Check Button
-if st.button("🔍 Check for Plagiarism and Accuracy"):
+# Check plagiarism
+if st.button("🔍 Check for Plagiarism"):
     if text1.strip() and text2.strip():
-        similarity = get_jaccard_similarity(text1, text2)
-        st.success(f"Similarity Score: **{similarity}%**")
+        similarity = compute_cosine_similarity(text1, text2)
+        st.success(f"Cosine Similarity Score: **{similarity}%**")
 
-        # Prediction based on threshold
-        predicted_plagiarized = similarity >= threshold
-        actual_plagiarized = ground_truth == "Yes"
-
-        # Show judgment
-        if predicted_plagiarized:
-            st.warning("⚠️ Detected as Plagiarized")
+        if similarity >= threshold:
+            st.warning("⚠️ High similarity detected. This might be plagiarized.")
         else:
-            st.info("✅ Detected as Original")
-
-        # Compute accuracy
-        if (predicted_plagiarized and actual_plagiarized) or (not predicted_plagiarized and not actual_plagiarized):
-            st.success("🎯 Prediction was CORRECT ✅ (Accuracy = 100%)")
-        else:
-            st.error("❌ Prediction was WRONG ❌ (Accuracy = 0%)")
+            st.info("✅ Low similarity. No plagiarism detected.")
     else:
         st.error("Both inputs are required.")
