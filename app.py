@@ -48,14 +48,33 @@ with col2:
     uploaded_file2 = st.file_uploader("Upload Submitted Document", type=["pdf", "docx", "txt"], key="file2")
     text2 = extract_text_from_file(uploaded_file2) if uploaded_file2 else st.text_area("Or paste Submitted Text", height=250)
 
+# User defines threshold and ground truth
+st.markdown("---")
+st.subheader("📏 Plagiarism Threshold & Ground Truth")
+
+threshold = st.slider("Set plagiarism threshold (%)", min_value=10, max_value=100, value=50, step=5)
+ground_truth = st.radio("Is the submitted text truly plagiarized (ground truth)?", ["Yes", "No"])
+
 # Plagiarism Check Button
-if st.button("🔍 Check for Plagiarism"):
+if st.button("🔍 Check for Plagiarism and Accuracy"):
     if text1.strip() and text2.strip():
         similarity = get_jaccard_similarity(text1, text2)
         st.success(f"Similarity Score: **{similarity}%**")
-        if similarity > 10:
-            st.warning("⚠️ High similarity detected. Potential plagiarism.")
+
+        # Prediction based on threshold
+        predicted_plagiarized = similarity >= threshold
+        actual_plagiarized = ground_truth == "Yes"
+
+        # Show judgment
+        if predicted_plagiarized:
+            st.warning("⚠️ Detected as Plagiarized")
         else:
-            st.info("✅ Low similarity. Content appears original.")
+            st.info("✅ Detected as Original")
+
+        # Compute accuracy
+        if (predicted_plagiarized and actual_plagiarized) or (not predicted_plagiarized and not actual_plagiarized):
+            st.success("🎯 Prediction was CORRECT ✅ (Accuracy = 100%)")
+        else:
+            st.error("❌ Prediction was WRONG ❌ (Accuracy = 0%)")
     else:
         st.error("Both inputs are required.")
