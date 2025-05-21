@@ -1,26 +1,11 @@
 import streamlit as st
 
 # Must be first
-st.set_page_config(page_title="AI Plagiarism & Paraphrasing", layout="wide")
+st.set_page_config(page_title="AI Plagiarism Checker", layout="wide")
 
 from PyPDF2 import PdfReader
 import docx
 from difflib import SequenceMatcher
-import google.generativeai as genai
-
-# Configure Gemini API
-GOOGLE_API_KEY = "AIzaSyCOzTWV41mYCfOva_NBI2if_M8XlKD6gOA"  # Replace with your actual API key
-genai.configure(api_key=GOOGLE_API_KEY)
-gemini_model = genai.GenerativeModel("gemini-1.5-flash")
-
-# Gemini paraphrasing
-def paraphrase_text_gemini(text):
-    try:
-        prompt = f"Paraphrase the following text in clear academic English:\n\n{text}"
-        response = gemini_model.generate_content(prompt)
-        return response.text.strip()
-    except Exception as e:
-        return f"⚠️ Paraphrasing failed: {e}"
 
 # Similarity checker
 def get_similarity(text1, text2):
@@ -40,7 +25,7 @@ def extract_text_from_file(uploaded_file):
         return "⚠️ Unsupported file format. Please upload a PDF, DOCX, or TXT file."
 
 # UI
-st.title("🧠 AI Plagiarism Checker & Paraphrasing Tool (Gemini-Powered)")
+st.title("🧠 AI Plagiarism Checker")
 
 st.header("📘 Plagiarism Checker")
 col1, col2 = st.columns(2)
@@ -58,21 +43,8 @@ if st.button("🔍 Check for Plagiarism"):
         score = get_similarity(text1, text2)
         st.success(f"Similarity Score: **{score}%**")
         if score > 10:
-            st.warning("High similarity detected. Here's a paraphrased version:")
-            st.subheader("💡 Paraphrased Text")
-            st.write(paraphrase_text_gemini(text2))
+            st.warning("⚠️ High similarity detected. Potential plagiarism.")
+        else:
+            st.info("✅ Low similarity. Content appears original.")
     else:
-        st.error("Both inputs required.")
-
-# Paraphrasing Section
-st.markdown("---")
-st.header("✍️ Paraphrasing Tool")
-
-user_input = st.text_area("Enter text to paraphrase ", height=200)
-if st.button("♻️ Generate Paraphrased Text"):
-    if user_input.strip():
-        output = paraphrase_text_gemini(user_input)
-        st.subheader("🔁 Paraphrased Output")
-        st.write(output)
-    else:
-        st.warning("Please enter text to paraphrase.")
+        st.error("Both inputs are required.")
