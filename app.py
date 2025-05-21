@@ -68,7 +68,7 @@ if st.button("🔍 Check for Plagiarism"):
 st.markdown("---")
 st.header("✍️ Paraphrasing Tool")
 
-user_input = st.text_area("Enter text to paraphrase using Gemini", height=200)
+user_input = st.text_area("Enter text to paraphrase ", height=200)
 if st.button("♻️ Generate Paraphrased Text"):
     if user_input.strip():
         output = paraphrase_text_gemini(user_input)
