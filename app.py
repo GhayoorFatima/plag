@@ -5,8 +5,8 @@ import math
 from collections import Counter
 
 # Set up Streamlit page
-st.set_page_config(page_title="AI Plagiarism Checker (Cosine Similarity)", layout="wide")
-st.title("🧠 AI Plagiarism Checker using Cosine Similarity (From Scratch)")
+st.set_page_config(page_title="Plagiarism Checker", layout="wide")
+st.title("🧠 Plagiarism Checker")
 
 # Text extraction
 def extract_text_from_file(uploaded_file):
