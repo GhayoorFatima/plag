@@ -40,7 +40,7 @@ def extract_text_from_file(uploaded_file):
         return "⚠️ Unsupported file format. Please upload a PDF, DOCX, or TXT file."
 
 # UI
-st.title("🧠 AI Plagiarism Checker & Paraphrasing Tool (Gemini-Powered)")
+st.title("🧠 AI Plagiarism Checker & Paraphrasing Tool ")
 
 st.header("📘 Plagiarism Checker")
 col1, col2 = st.columns(2)
