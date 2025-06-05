@@ -53,11 +53,23 @@ with col2:
     uploaded_file2 = st.file_uploader("Upload Submitted Text File", type=["pdf", "docx", "txt"], key="file2")
     text2 = extract_text_from_file(uploaded_file2) if uploaded_file2 else st.text_area("Or paste Submitted Text", height=250)
 
-# Threshold slider
-threshold = st.slider("Set Similarity Threshold for Paraphrasing (%)", min_value=0, max_value=100, value=10, step=1)
+with st.expander("🔧 Plagiarism Checker Settings", expanded=True):
+    threshold = st.slider("Set Similarity Threshold for Paraphrasing (%)", min_value=0, max_value=100, value=10, step=1)
 
-# Plagiarism check
 if st.button("🔍 Check for Plagiarism"):
+    if text1.strip() and text2.strip():
+        score = get_similarity(text1, text2)
+        st.success(f"Similarity Score: **{score}%**")
+
+        if score >= threshold:
+            st.warning(f"Similarity exceeds threshold of {threshold}%. Generating paraphrased version:")
+            st.subheader("💡 Paraphrased Text")
+            st.write(paraphrase_text_gemini(text2))
+        else:
+            st.info(f"Similarity is below the threshold of {threshold}%. No paraphrasing needed.")
+    else:
+        st.error("Both inputs required.")
+
     if text1.strip() and text2.strip():
         score = get_similarity(text1, text2)
         st.success(f"Similarity Score: **{score}%**")
