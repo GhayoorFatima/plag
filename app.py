@@ -13,7 +13,11 @@ GOOGLE_API_KEY = "AIzaSyCOzTWV41mYCfOva_NBI2if_M8XlKD6gOA"  # Replace with your 
 genai.configure(api_key=GOOGLE_API_KEY)
 gemini_model = genai.GenerativeModel("gemini-1.5-flash")
 
-# Gemini paraphrasing
+# ===========================
+# 📌 Helper Functions
+# ===========================
+
+# Paraphrasing with Gemini
 def paraphrase_text_gemini(text):
     try:
         prompt = f"Paraphrase the following text in clear academic English:\n\n{text}"
@@ -22,14 +26,39 @@ def paraphrase_text_gemini(text):
     except Exception as e:
         return f"⚠️ Paraphrasing failed: {e}"
 
-# Simulated online plagiarism checker
+# Online plagiarism detection (simulated)
 def check_plagiarism_online(text):
     try:
-        prompt = f"Does the following text seem copied from any known internet sources or public datasets? Provide a similarity percentage (0–100) and short reasoning:\n\n{text}"
+        prompt = f"""
+You are a plagiarism detection engine. Analyze the following text against known online sources. Respond in this JSON format:
+
+{{
+  "similarity_percentage": <number>,
+  "sources": [
+    {{
+      "source_url": "<source URL or name>",
+      "matched_lines": [
+        "matched sentence 1",
+        "matched sentence 2"
+      ]
+    }}
+  ]
+}}
+
+Text:
+{text}
+"""
         response = gemini_model.generate_content(prompt)
-        return response.text.strip()
+
+        import json
+        import re
+        json_match = re.search(r'\{[\s\S]*\}', response.text)
+        if json_match:
+            return json.loads(json_match.group())
+        else:
+            return {"error": "❌ Could not parse structured result from Gemini."}
     except Exception as e:
-        return f"⚠️ Online plagiarism check failed: {e}"
+        return {"error": f"⚠️ Online plagiarism check failed: {e}"}
 
 # Local similarity checker
 def get_similarity(text1, text2):
@@ -48,16 +77,17 @@ def extract_text_from_file(uploaded_file):
     else:
         return "⚠️ Unsupported file format. Please upload a PDF, DOCX, or TXT file."
 
-# ======================================
-# 🌐 APP UI
-# ======================================
+# ===========================
+# 🎯 App UI
+# ===========================
+
 st.title("🧠 AI Plagiarism Checker & Paraphrasing Tool")
 
 tab1, tab2 = st.tabs(["🔍 Plagiarism Checker", "✍️ Paraphrasing Tool"])
 
-# ======================================
+# ===========================
 # 🔍 TAB 1: Plagiarism Checker
-# ======================================
+# ===========================
 with tab1:
     st.header("📘 Document Comparison")
 
@@ -75,7 +105,7 @@ with tab1:
     if st.button("🔍 Check for Plagiarism"):
         if text1.strip() and text2.strip():
             score = get_similarity(text1, text2)
-            st.success(f"Similarity Score: **{score}%**")
+            st.success(f"🧪 Similarity Score: **{score}%**")
 
             if score >= threshold:
                 st.warning(f"Similarity exceeds threshold of {threshold}%. Generating paraphrased version:")
@@ -84,7 +114,7 @@ with tab1:
             else:
                 st.info(f"Similarity is below the threshold of {threshold}%. No paraphrasing needed.")
         else:
-            st.error("Both inputs required.")
+            st.error("❌ Both text inputs are required.")
 
     # --------------------------------------
     st.markdown("---")
@@ -102,14 +132,26 @@ with tab1:
     if st.button("🌍 Check Online Plagiarism"):
         if online_text.strip():
             result = check_plagiarism_online(online_text)
-            st.subheader("🔎 Online Source Match Result")
-            st.write(result)
-        else:
-            st.warning("Please upload a file or enter text.")
 
-# ======================================
+            if "error" in result:
+                st.error(result["error"])
+            else:
+                st.subheader(f"🔎 Similarity Score: **{result['similarity_percentage']}%**")
+
+                if result["sources"]:
+                    st.subheader("🌍 Matched Sources & Lines")
+                    for idx, source in enumerate(result["sources"], 1):
+                        st.markdown(f"**{idx}. Source:** {source['source_url']}")
+                        for line in source["matched_lines"]:
+                            st.markdown(f"- _{line}_")
+                else:
+                    st.success("✅ No significant matches found online.")
+        else:
+            st.warning("⚠️ Please upload a file or enter some text.")
+
+# ===========================
 # ✍️ TAB 2: Paraphrasing Tool
-# ======================================
+# ===========================
 with tab2:
     st.header("🔁 Gemini Paraphrasing Tool")
     user_input = st.text_area("Enter text to paraphrase", height=250)
@@ -120,4 +162,4 @@ with tab2:
             st.subheader("✍️ Paraphrased Output")
             st.write(paraphrased)
         else:
-            st.warning("Please enter text to paraphrase.")
+            st.warning("⚠️ Please enter text to paraphrase.")
