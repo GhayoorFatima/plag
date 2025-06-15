@@ -22,11 +22,20 @@ def paraphrase_text_gemini(text):
     except Exception as e:
         return f"⚠️ Paraphrasing failed: {e}"
 
-# Similarity checker
+# Simulated online plagiarism checker
+def check_plagiarism_online(text):
+    try:
+        prompt = f"Does the following text seem copied from any known internet sources or public datasets? Provide a similarity percentage (0–100) and short reasoning:\n\n{text}"
+        response = gemini_model.generate_content(prompt)
+        return response.text.strip()
+    except Exception as e:
+        return f"⚠️ Online plagiarism check failed: {e}"
+
+# Local similarity
 def get_similarity(text1, text2):
     return round(SequenceMatcher(None, text1, text2).ratio() * 100, 2)
 
-# Extract text from uploaded file
+# Extract text
 def extract_text_from_file(uploaded_file):
     if uploaded_file.name.endswith(".pdf"):
         reader = PdfReader(uploaded_file)
@@ -39,47 +48,65 @@ def extract_text_from_file(uploaded_file):
     else:
         return "⚠️ Unsupported file format. Please upload a PDF, DOCX, or TXT file."
 
-# UI
+# UI Layout
 st.title("🧠 AI Plagiarism Checker & Paraphrasing Tool")
 
-st.header("📘 Plagiarism Checker")
-col1, col2 = st.columns(2)
+tab1, tab2 = st.tabs(["🔍 Plagiarism Checker", "✍️ Paraphrasing Tool"])
 
-with col1:
-    uploaded_file1 = st.file_uploader("Upload Original Text File", type=["pdf", "docx", "txt"], key="file1")
-    text1 = extract_text_from_file(uploaded_file1) if uploaded_file1 else st.text_area("Or paste Original Text", height=250)
+# ================================
+# 🔍 Tab 1: Plagiarism Checker
+# ================================
+with tab1:
+    st.header("📘 Document Comparison")
 
-with col2:
-    uploaded_file2 = st.file_uploader("Upload Submitted Text File", type=["pdf", "docx", "txt"], key="file2")
-    text2 = extract_text_from_file(uploaded_file2) if uploaded_file2 else st.text_area("Or paste Submitted Text", height=250)
+    col1, col2 = st.columns(2)
+    with col1:
+        uploaded_file1 = st.file_uploader("Upload Original Text File", type=["pdf", "docx", "txt"], key="file1")
+        text1 = extract_text_from_file(uploaded_file1) if uploaded_file1 else st.text_area("Or paste Original Text", height=250)
 
-# Threshold slider
-threshold = st.slider("Set Similarity Threshold for Paraphrasing (%)", min_value=0, max_value=100, value=10, step=1)
+    with col2:
+        uploaded_file2 = st.file_uploader("Upload Submitted Text File", type=["pdf", "docx", "txt"], key="file2")
+        text2 = extract_text_from_file(uploaded_file2) if uploaded_file2 else st.text_area("Or paste Submitted Text", height=250)
 
-# Plagiarism check
-if st.button("🔍 Check for Plagiarism"):
-    if text1.strip() and text2.strip():
-        score = get_similarity(text1, text2)
-        st.success(f"Similarity Score: **{score}%**")
+    threshold = st.slider("Set Similarity Threshold (%)", min_value=0, max_value=100, value=10, step=1)
 
-        if score >= threshold:
-            st.warning(f"Similarity exceeds threshold of {threshold}%. Generating paraphrased version:")
-            st.subheader("💡 Paraphrased Text")
-            st.write(paraphrase_text_gemini(text2))
+    if st.button("🔍 Check for Plagiarism"):
+        if text1.strip() and text2.strip():
+            score = get_similarity(text1, text2)
+            st.success(f"Similarity Score: **{score}%**")
+
+            if score >= threshold:
+                st.warning(f"Similarity exceeds threshold of {threshold}%. Generating paraphrased version:")
+                st.subheader("💡 Paraphrased Text")
+                st.write(paraphrase_text_gemini(text2))
+            else:
+                st.info(f"Similarity is below the threshold of {threshold}%. No paraphrasing needed.")
         else:
-            st.info(f"Similarity is below the threshold of {threshold}%. No paraphrasing needed.")
-    else:
-        st.error("Both inputs required.")
+            st.error("Both inputs required.")
 
-# Paraphrasing Tool
-st.markdown("---")
-st.header("✍️ Paraphrasing Tool")
+    st.markdown("---")
+    st.header("🌐 Online Plagiarism Check")
+    online_text = st.text_area("Paste text to check against global sources", height=200)
 
-user_input = st.text_area("Enter text to paraphrase using Gemini", height=200)
-if st.button("♻️ Generate Paraphrased Text"):
-    if user_input.strip():
-        output = paraphrase_text_gemini(user_input)
-        st.subheader("🔁 Paraphrased Output")
-        st.write(output)
-    else:
-        st.warning("Please enter text to paraphrase.")
+    if st.button("🌍 Check Online Plagiarism"):
+        if online_text.strip():
+            result = check_plagiarism_online(online_text)
+            st.subheader("🔎 Online Source Match Result")
+            st.write(result)
+        else:
+            st.warning("Please enter text to check.")
+
+# ================================
+# ✍️ Tab 2: Paraphrasing Tool
+# ================================
+with tab2:
+    st.header("🔁 Gemini Paraphrasing Tool")
+    user_input = st.text_area("Enter text to paraphrase", height=250)
+
+    if st.button("♻️ Generate Paraphrased Text"):
+        if user_input.strip():
+            paraphrased = paraphrase_text_gemini(user_input)
+            st.subheader("✍️ Paraphrased Output")
+            st.write(paraphrased)
+        else:
+            st.warning("Please enter text to paraphrase.")
