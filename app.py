@@ -31,11 +31,11 @@ def check_plagiarism_online(text):
     except Exception as e:
         return f"⚠️ Online plagiarism check failed: {e}"
 
-# Local similarity
+# Local similarity checker
 def get_similarity(text1, text2):
     return round(SequenceMatcher(None, text1, text2).ratio() * 100, 2)
 
-# Extract text
+# File text extractor
 def extract_text_from_file(uploaded_file):
     if uploaded_file.name.endswith(".pdf"):
         reader = PdfReader(uploaded_file)
@@ -48,14 +48,16 @@ def extract_text_from_file(uploaded_file):
     else:
         return "⚠️ Unsupported file format. Please upload a PDF, DOCX, or TXT file."
 
-# UI Layout
+# ======================================
+# 🌐 APP UI
+# ======================================
 st.title("🧠 AI Plagiarism Checker & Paraphrasing Tool")
 
 tab1, tab2 = st.tabs(["🔍 Plagiarism Checker", "✍️ Paraphrasing Tool"])
 
-# ================================
-# 🔍 Tab 1: Plagiarism Checker
-# ================================
+# ======================================
+# 🔍 TAB 1: Plagiarism Checker
+# ======================================
 with tab1:
     st.header("📘 Document Comparison")
 
@@ -84,9 +86,18 @@ with tab1:
         else:
             st.error("Both inputs required.")
 
+    # --------------------------------------
     st.markdown("---")
     st.header("🌐 Online Plagiarism Check")
-    online_text = st.text_area("Paste text to check against global sources", height=200)
+
+    online_file = st.file_uploader("Upload File to Check Against Online Sources", type=["pdf", "docx", "txt"], key="online_file")
+    online_text = ""
+
+    if online_file:
+        online_text = extract_text_from_file(online_file)
+        st.text_area("Extracted Text from Uploaded File", online_text, height=200)
+    else:
+        online_text = st.text_area("Or paste text manually to check", height=200)
 
     if st.button("🌍 Check Online Plagiarism"):
         if online_text.strip():
@@ -94,11 +105,11 @@ with tab1:
             st.subheader("🔎 Online Source Match Result")
             st.write(result)
         else:
-            st.warning("Please enter text to check.")
+            st.warning("Please upload a file or enter text.")
 
-# ================================
-# ✍️ Tab 2: Paraphrasing Tool
-# ================================
+# ======================================
+# ✍️ TAB 2: Paraphrasing Tool
+# ======================================
 with tab2:
     st.header("🔁 Gemini Paraphrasing Tool")
     user_input = st.text_area("Enter text to paraphrase", height=250)
