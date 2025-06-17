@@ -9,7 +9,7 @@ from fpdf import FPDF
 import tempfile
 
 # --- Configuration ---
-st.set_page_config(page_title="AI Plagiarism & Paraphrasing", layout="wide")
+st.set_page_config(page_title="Sigma AI Plagiarism & Paraphrasing", layout="wide")
 GOOGLE_API_KEY = "AIzaSyCOzTWV41mYCfOva_NBI2if_M8XlKD6gOA"
 WINSTON_API_KEY = "wx2ITlcQhCPh5fmOFiochTyUP0pjoXsifZbhgst837818ca4"
 
@@ -56,7 +56,7 @@ def generate_plagiarism_pdf(result, text):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", "B", 16)
-    pdf.cell(0, 10, "Winston AI Plagiarism Report", ln=True, align="C")
+    pdf.cell(0, 10, "Sigma AI Plagiarism Report", ln=True, align="C")
 
     pdf.set_font("Arial", size=12)
     pdf.ln(5)
@@ -140,7 +140,7 @@ with tabs[1]:
 
                 pdf_path = generate_plagiarism_pdf(result, online_text)
                 with open(pdf_path, "rb") as f:
-                    st.download_button("📄 Download PDF Report", f, file_name="Winston_Plagiarism_Report.pdf")
+                    st.download_button("📄 Download PDF Report", f, file_name="Sigma_Plagiarism_Report.pdf")
         else:
             st.error("Please upload or paste text to check.")
 
