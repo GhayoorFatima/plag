@@ -54,7 +54,7 @@ def online_plagiarism_check(text):
         }
 
         # Replace with your actual API endpoint if different
-        response = requests.post("https://api.plagiarismchecker.ai/v1/check", json=payload, headers=headers)
+        response = requests.post("https://dev.gowinston.ai/", json=payload, headers=headers)
 
         if response.status_code == 200:
             data = response.json()
