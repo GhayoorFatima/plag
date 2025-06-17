@@ -7,6 +7,9 @@ from PyPDF2 import PdfReader
 import docx
 from difflib import SequenceMatcher
 import google.generativeai as genai
+import pandas as pd
+import re
+import json
 
 # Configure Gemini API
 GOOGLE_API_KEY = "AIzaSyCOzTWV41mYCfOva_NBI2if_M8XlKD6gOA"  # Replace with your actual API key
@@ -17,7 +20,6 @@ gemini_model = genai.GenerativeModel("gemini-1.5-flash")
 # 📌 Helper Functions
 # ===========================
 
-# Paraphrasing with Gemini
 def paraphrase_text_gemini(text):
     try:
         prompt = f"Paraphrase the following text in clear academic English:\n\n{text}"
@@ -26,17 +28,18 @@ def paraphrase_text_gemini(text):
     except Exception as e:
         return f"⚠️ Paraphrasing failed: {e}"
 
-# Online plagiarism detection (simulated)
 def check_plagiarism_online(text):
     try:
         prompt = f"""
-You are a plagiarism detection engine. Analyze the following text against known online sources. Respond in this JSON format:
+You are a plagiarism detection engine. Check the following text for similarity against online sources.
+Respond strictly in this JSON format:
 
 {{
-  "similarity_percentage": <number>,
+  "similarity_percentage": <number between 0-100>,
   "sources": [
     {{
       "source_url": "<source URL or name>",
+      "match_percentage": <number>,
       "matched_lines": [
         "matched sentence 1",
         "matched sentence 2"
@@ -46,25 +49,20 @@ You are a plagiarism detection engine. Analyze the following text against known 
 }}
 
 Text:
-{text}
-"""
+"""{text}"""
+        """
         response = gemini_model.generate_content(prompt)
-
-        import json
-        import re
         json_match = re.search(r'\{[\s\S]*\}', response.text)
         if json_match:
             return json.loads(json_match.group())
         else:
-            return {"error": "❌ Could not parse structured result from Gemini."}
+            return {"error": "❌ Failed to extract structured JSON from Gemini response."}
     except Exception as e:
         return {"error": f"⚠️ Online plagiarism check failed: {e}"}
 
-# Local similarity checker
 def get_similarity(text1, text2):
     return round(SequenceMatcher(None, text1, text2).ratio() * 100, 2)
 
-# File text extractor
 def extract_text_from_file(uploaded_file):
     if uploaded_file.name.endswith(".pdf"):
         reader = PdfReader(uploaded_file)
@@ -116,7 +114,6 @@ with tab1:
         else:
             st.error("❌ Both text inputs are required.")
 
-    # --------------------------------------
     st.markdown("---")
     st.header("🌐 Online Plagiarism Check")
 
@@ -131,19 +128,34 @@ with tab1:
 
     if st.button("🌍 Check Online Plagiarism"):
         if online_text.strip():
-            result = check_plagiarism_online(online_text)
+            with st.spinner("🔍 Checking plagiarism with Gemini..."):
+                result = check_plagiarism_online(online_text)
 
             if "error" in result:
                 st.error(result["error"])
             else:
-                st.subheader(f"🔎 Similarity Score: **{result['similarity_percentage']}%**")
+                st.subheader(f"🔎 Overall Similarity Score: **{result['similarity_percentage']}%**")
 
                 if result["sources"]:
-                    st.subheader("🌍 Matched Sources & Lines")
+                    st.subheader("🌐 Matched Sources & Lines")
+                    report_data = []
+
                     for idx, source in enumerate(result["sources"], 1):
                         st.markdown(f"**{idx}. Source:** {source['source_url']}")
+                        st.markdown(f"🔢 Match %: **{source['match_percentage']}%**")
                         for line in source["matched_lines"]:
                             st.markdown(f"- _{line}_")
+
+                        for line in source["matched_lines"]:
+                            report_data.append({
+                                "Source": source["source_url"],
+                                "Match %": source["match_percentage"],
+                                "Matched Line": line
+                            })
+
+                    df = pd.DataFrame(report_data)
+                    csv = df.to_csv(index=False)
+                    st.download_button("📅 Download Match Report (CSV)", csv, file_name="plagiarism_report.csv", mime="text/csv")
                 else:
                     st.success("✅ No significant matches found online.")
         else:
