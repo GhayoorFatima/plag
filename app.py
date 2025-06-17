@@ -1,22 +1,25 @@
 import streamlit as st
-
-# Must be first
-st.set_page_config(page_title="AI Plagiarism & Paraphrasing", layout="wide")
 from PyPDF2 import PdfReader
 import docx
 from difflib import SequenceMatcher
 import google.generativeai as genai
+from fpdf import FPDF
+import json
+import re
+import base64
+import tempfile
 
 # Configure Gemini API
-GOOGLE_API_KEY = "AIzaSyCOzTWV41mYCfOva_NBI2if_M8XlKD6gOA"  # Replace with your actual API key
+GOOGLE_API_KEY = "AIzaSyCOzTWV41mYCfOva_NBI2if_M8XlKD6gOA"  # Replace with your actual key
 genai.configure(api_key=GOOGLE_API_KEY)
 gemini_model = genai.GenerativeModel("gemini-1.5-flash")
+
+st.set_page_config(page_title="AI Plagiarism & Paraphrasing", layout="wide")
 
 # ===========================
 # 📌 Helper Functions
 # ===========================
 
-# Paraphrasing with Gemini
 def paraphrase_text_gemini(text):
     try:
         prompt = f"Paraphrase the following text in clear academic English:\n\n{text}"
@@ -25,7 +28,6 @@ def paraphrase_text_gemini(text):
     except Exception as e:
         return f"⚠️ Paraphrasing failed: {e}"
 
-# Online plagiarism detection (simulated)
 def check_plagiarism_online(text):
     try:
         prompt = f"""
@@ -48,9 +50,6 @@ Text:
 {text}
 """
         response = gemini_model.generate_content(prompt)
-
-        import json
-        import re
         json_match = re.search(r'\{[\s\S]*\}', response.text)
         if json_match:
             return json.loads(json_match.group())
@@ -59,11 +58,9 @@ Text:
     except Exception as e:
         return {"error": f"⚠️ Online plagiarism check failed: {e}"}
 
-# Local similarity checker
 def get_similarity(text1, text2):
     return round(SequenceMatcher(None, text1, text2).ratio() * 100, 2)
 
-# File text extractor
 def extract_text_from_file(uploaded_file):
     if uploaded_file.name.endswith(".pdf"):
         reader = PdfReader(uploaded_file)
@@ -76,12 +73,43 @@ def extract_text_from_file(uploaded_file):
     else:
         return "⚠️ Unsupported file format. Please upload a PDF, DOCX, or TXT file."
 
+# Generate downloadable plagiarism report as PDF
+def generate_plagiarism_pdf(result, original_text):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+
+    pdf.cell(200, 10, txt="AI Plagiarism Detection Report", ln=True, align='C')
+    pdf.ln(10)
+    pdf.cell(200, 10, txt=f"Similarity Score: {result['similarity_percentage']}%", ln=True)
+
+    if result.get("sources"):
+        for idx, source in enumerate(result["sources"], 1):
+            pdf.ln(5)
+            pdf.set_font("Arial", "B", 12)
+            pdf.cell(200, 10, txt=f"{idx}. Source: {source['source_url']}", ln=True)
+            pdf.set_font("Arial", "", 11)
+            for line in source["matched_lines"]:
+                pdf.multi_cell(0, 10, f"- {line}")
+    else:
+        pdf.ln(10)
+        pdf.cell(200, 10, txt="✅ No significant matches found online.", ln=True)
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        pdf.output(tmp.name)
+        return tmp.name
+
+def get_download_link(file_path, label="📄 Download Report"):
+    with open(file_path, "rb") as f:
+        data = f.read()
+    b64 = base64.b64encode(data).decode()
+    return f'<a href="data:application/pdf;base64,{b64}" download="plagiarism_report.pdf">{label}</a>'
+
 # ===========================
 # 🎯 App UI
 # ===========================
 
 st.title("🧠 AI Plagiarism Checker & Paraphrasing Tool")
-
 tab1, tab2 = st.tabs(["🔍 Plagiarism Checker", "✍️ Paraphrasing Tool"])
 
 # ===========================
@@ -115,18 +143,11 @@ with tab1:
         else:
             st.error("❌ Both text inputs are required.")
 
-    # --------------------------------------
     st.markdown("---")
     st.header("🌐 Online Plagiarism Check")
 
     online_file = st.file_uploader("Upload File to Check Against Online Sources", type=["pdf", "docx", "txt"], key="online_file")
-    online_text = ""
-
-    if online_file:
-        online_text = extract_text_from_file(online_file)
-        st.text_area("Extracted Text from Uploaded File", online_text, height=200)
-    else:
-        online_text = st.text_area("Or paste text manually to check", height=200)
+    online_text = extract_text_from_file(online_file) if online_file else st.text_area("Or paste text manually to check", height=200)
 
     if st.button("🌍 Check Online Plagiarism"):
         if online_text.strip():
@@ -145,6 +166,9 @@ with tab1:
                             st.markdown(f"- _{line}_")
                 else:
                     st.success("✅ No significant matches found online.")
+
+                report_path = generate_plagiarism_pdf(result, online_text)
+                st.markdown(get_download_link(report_path), unsafe_allow_html=True)
         else:
             st.warning("⚠️ Please upload a file or enter some text.")
 
