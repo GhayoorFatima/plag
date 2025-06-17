@@ -2,7 +2,6 @@ import streamlit as st
 
 # Must be first
 st.set_page_config(page_title="AI Plagiarism & Paraphrasing", layout="wide")
-
 from PyPDF2 import PdfReader
 import docx
 from difflib import SequenceMatcher
