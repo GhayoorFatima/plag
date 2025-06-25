@@ -11,7 +11,7 @@ import tempfile
 # --- Configuration ---
 st.set_page_config(page_title="Sigma AI Plagiarism & Paraphrasing", layout="wide")
 GOOGLE_API_KEY = "AIzaSyCOzTWV41mYCfOva_NBI2if_M8XlKD6gOA"
-WINSTON_API_KEY = "wx2ITlcQhCPh5fmOFiochTyUP0pjoXsifZbhgst837818ca4"
+WINSTON_API_KEY = "plB6Hp7MFW3xNjkr6IGE96BAf7ntQ9r12qj1FEWv92a78517"
 
 genai.configure(api_key=GOOGLE_API_KEY)
 gemini_model = genai.GenerativeModel("gemini-1.5-flash")
