@@ -3,7 +3,6 @@ from PyPDF2 import PdfReader
 import docx
 from difflib import SequenceMatcher
 import google.generativeai as genai
-
 # --- SETUP ---
 st.set_page_config(page_title="Sigma AI | Plagiarism & Paraphrasing", layout="wide")
 
