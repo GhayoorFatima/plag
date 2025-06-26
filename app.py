@@ -3,6 +3,7 @@ from PyPDF2 import PdfReader
 import docx
 from difflib import SequenceMatcher
 import google.generativeai as genai
+
 # --- SETUP ---
 st.set_page_config(page_title="Sigma AI | Plagiarism & Paraphrasing", layout="wide")
 
@@ -33,13 +34,13 @@ def extract_text(uploaded_file):
     else:
         return ""
 
-def ai_plagiarism_check(text):
+def get_plagiarism_percentage_with_gemini(text):
     try:
-        prompt = f"Analyze the following text and tell me if it appears to be plagiarized from known online content. Be honest and detailed.\n\n{text}"
+        prompt = f"Estimate what percentage of the following text is likely to be plagiarized from online sources. Just give a number between 0 and 100, nothing else.\n\n{text}"
         response = gemini_model.generate_content(prompt)
         return response.text.strip()
     except Exception as e:
-        return f"⚠️ AI plagiarism analysis failed: {e}"
+        return f"⚠️ Gemini failed: {e}"
 
 # --- UI STARTS HERE ---
 st.title("🧠 Sigma AI – Plagiarism & Paraphrasing Tool")
@@ -80,9 +81,9 @@ with tabs[1]:
     if st.button("🧠 Check via AI"):
         if text.strip():
             with st.spinner("Analyzing with Gemini AI..."):
-                result = ai_plagiarism_check(text)
-                st.subheader("🧾 AI Analysis Result")
-                st.write(result)
+                percentage = get_plagiarism_percentage_with_gemini(text)
+                st.subheader("📊 Estimated Plagiarism Percentage")
+                st.metric("Plagiarism Detected", f"{percentage}%")
         else:
             st.error("⚠️ Please upload or paste content.")
 
