@@ -4,24 +4,21 @@ import docx
 from difflib import SequenceMatcher
 import google.generativeai as genai
 import requests
-from datetime import datetime
 import base64
 import time
 
 # --- SETUP ---
 st.set_page_config(page_title="Sigma AI | Plagiarism & Paraphrasing", layout="wide")
 
-# 🔑 Replace with your actual API keys
+# 🔑 API Keys
 GEMINI_API_KEY = "AIzaSyCOzTWV41mYCfOva_NBI2if_M8XlKD6gOA"
-PLAGCHECK_API_TOKEN = "kvcZ7jnVWANxAZOVuZZvxF83V8D6QmWw"
+COPYSCOPE_API_TOKEN = "ylxcyl2671nstrxa"
 
 # Initialize Gemini
 genai.configure(api_key=GEMINI_API_KEY)
 gemini_model = genai.GenerativeModel("gemini-1.5-flash")
 
 # --- FUNCTIONS ---
-
-# Paraphrasing via Gemini
 def paraphrase_text(text):
     try:
         prompt = f"Paraphrase the following in clear academic English:\n\n{text}"
@@ -30,11 +27,9 @@ def paraphrase_text(text):
     except Exception as e:
         return f"⚠️ Paraphrasing failed: {e}"
 
-# Similarity comparison
 def get_similarity(text1, text2):
     return round(SequenceMatcher(None, text1, text2).ratio() * 100, 2)
 
-# Extract text from uploaded file
 def extract_text(uploaded_file):
     if uploaded_file.name.endswith(".pdf"):
         reader = PdfReader(uploaded_file)
@@ -46,40 +41,28 @@ def extract_text(uploaded_file):
     else:
         return ""
 
-# PlagiarismCheck.org API
-def check_plagiarism_plagcheck(text):
-    headers = {
-        "Authorization": f"Bearer {PLAGCHECK_API_TOKEN}",
-        "Content-Type": "application/json"
-    }
-    data = { "text": text }
-
-    # Step 1: Submit
-    submit_resp = requests.post("https://plagiarismcheck.org/api/v1/text", json=data, headers=headers)
-    if submit_resp.status_code != 200:
-        return {"error": f"❌ Submit failed: {submit_resp.status_code} – {submit_resp.text}"}
-    
-    job_id = submit_resp.json()["id"]
-
-    # Step 2: Poll until complete
-    for _ in range(15):
-        time.sleep(2)
-        status_resp = requests.get(f"https://plagiarismcheck.org/api/v1/text/{job_id}", headers=headers)
-        if status_resp.status_code != 200:
-            return {"error": f"❌ Status check failed: {status_resp.status_code}"}
+# Simulated Copyscape check
+def check_plagiarism_copyscape(text):
+    try:
+        encoded_text = base64.b64encode(text.encode()).decode()
+        url = f"https://www.copyscape.com/api/?u={COPYSCOPE_API_TOKEN}&o=csearch&t={encoded_text}"
+        response = requests.get(url)
+        if response.status_code != 200:
+            return {"error": f"❌ Copyscape API Error: {response.status_code}"}
         
-        result = status_resp.json()
-        if not result.get("checking", True):
-            return {"report": result}
-
-    return {"error": "⏳ Scan timed out. Try again later."}
+        if "<result>" in response.text:
+            return {"report": {"matches_found": True, "content": response.text}}
+        else:
+            return {"report": {"matches_found": False, "content": "No matches found."}}
+    except Exception as e:
+        return {"error": f"❌ API request failed: {e}"}
 
 # --- UI STARTS HERE ---
 st.title("🧠 Sigma AI – Plagiarism & Paraphrasing Tool")
 
 tabs = st.tabs(["🔍 Compare Files", "🌐 Check Online Plagiarism", "✍️ Paraphrasing"])
 
-# --- Tab 1: Compare Files ---
+# --- Tab 1: File-to-File Similarity ---
 with tabs[0]:
     st.header("📘 File-to-File Similarity Checker")
     col1, col2 = st.columns(2)
@@ -104,31 +87,30 @@ with tabs[0]:
         else:
             st.error("⚠️ Both texts are required.")
 
-# --- Tab 2: Online Plagiarism Check ---
+# --- Tab 2: Copyscape Plagiarism Check ---
 with tabs[1]:
-    st.header("🌐 PlagiarismCheck.org – Online Checker")
+    st.header("🌐 Copyscape – Online Plagiarism Checker")
     file = st.file_uploader("Upload file", type=["pdf", "docx", "txt"], key="online_file")
     text = extract_text(file) if file else st.text_area("Or paste text to check", key="online_text")
 
-    if st.button("🔎 Submit to PlagiarismCheck.org"):
+    if st.button("🔎 Submit to Copyscape"):
         if text.strip():
-            with st.spinner("Submitting text to PlagiarismCheck.org..."):
-                result = check_plagiarism_plagcheck(text)
+            with st.spinner("Submitting text to Copyscape..."):
+                result = check_plagiarism_copyscape(text)
 
             if "error" in result:
                 st.error(result["error"])
             else:
                 report = result["report"]
-                st.success(f"✅ Similarity Score: {report.get('plagPercent', 0)}%")
-                st.markdown("### 📄 Sources Found:")
-                for d in report.get("details", []):
-                    for w in d.get("webs", []):
-                        st.markdown(f"- [{w['title']}]({w['url']})")
-                        st.markdown(f"  > _{d['query']}_")
+                if report["matches_found"]:
+                    st.success("✅ Matches found:")
+                    st.code(report["content"])
+                else:
+                    st.info("✅ No plagiarism detected.")
         else:
             st.error("Please upload or paste content.")
 
-# --- Tab 3: Paraphrasing ---
+# --- Tab 3: Paraphrasing Tool ---
 with tabs[2]:
     st.header("✍️ AI Paraphrasing via Gemini")
     user_input = st.text_area("Enter text to paraphrase", height=200)
