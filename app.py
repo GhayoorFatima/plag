@@ -8,120 +8,134 @@ from datetime import datetime
 import base64
 import time
 
-# --- Configuration ---
-st.set_page_config(page_title="Sigma AI Plagiarism & Paraphrasing", layout="wide")
+# --- SETUP ---
+st.set_page_config(page_title="Sigma AI | Plagiarism & Paraphrasing", layout="wide")
 
-# 🔑 Set your API keys here directly
-GOOGLE_API_KEY = "AIzaSyCOzTWV41mYCfOva_NBI2if_M8XlKD6gOA"
+# 🔑 Replace with your actual API keys
+GEMINI_API_KEY = "AIzaSyCOzTWV41mYCfOva_NBI2if_M8XlKD6gOA"
 PLAGCHECK_API_TOKEN = "kvcZ7jnVWANxAZOVuZZvxF83V8D6QmWw"
 
-# Gemini Model Setup
-genai.configure(api_key=GOOGLE_API_KEY)
-gemini = genai.GenerativeModel("gemini-1.5-flash")
+# Initialize Gemini
+genai.configure(api_key=GEMINI_API_KEY)
+gemini_model = genai.GenerativeModel("gemini-1.5-flash")
 
-# --- Utility Functions ---
-def paraphrase_gemini(text):
-    prompt = f"Paraphrase the following text in clear academic English:\n\n{text}"
+# --- FUNCTIONS ---
+
+# Paraphrasing via Gemini
+def paraphrase_text(text):
     try:
-        return gemini.generate_content(prompt).text.strip()
+        prompt = f"Paraphrase the following in clear academic English:\n\n{text}"
+        response = gemini_model.generate_content(prompt)
+        return response.text.strip()
     except Exception as e:
-        return f"⚠️ Paraphrasing error: {e}"
+        return f"⚠️ Paraphrasing failed: {e}"
 
-def similarity(a, b):
-    return round(SequenceMatcher(None, a, b).ratio() * 100, 2)
+# Similarity comparison
+def get_similarity(text1, text2):
+    return round(SequenceMatcher(None, text1, text2).ratio() * 100, 2)
 
-def extract_text(file):
-    if file.name.endswith(".pdf"):
-        reader = PdfReader(file)
+# Extract text from uploaded file
+def extract_text(uploaded_file):
+    if uploaded_file.name.endswith(".pdf"):
+        reader = PdfReader(uploaded_file)
         return "\n".join(page.extract_text() for page in reader.pages if page.extract_text())
-    elif file.name.endswith(".docx"):
-        return "\n".join(p.text for p in docx.Document(file).paragraphs)
-    elif file.name.endswith(".txt"):
-        return file.read().decode("utf-8")
-    return ""
+    elif uploaded_file.name.endswith(".docx"):
+        return "\n".join(p.text for p in docx.Document(uploaded_file).paragraphs)
+    elif uploaded_file.name.endswith(".txt"):
+        return uploaded_file.read().decode("utf-8")
+    else:
+        return ""
 
-# --- PlagiarismCheck.org Integration ---
-def check_plagiarism(text):
-    headers = {"Authorization": f"Bearer {PLAGCHECK_API_TOKEN}"}
-    
+# PlagiarismCheck.org API
+def check_plagiarism_plagcheck(text):
+    headers = {
+        "Authorization": f"Bearer {PLAGCHECK_API_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    data = { "text": text }
+
     # Step 1: Submit
-    submit = requests.post("https://plagiarismcheck.org/api/v1/text", headers=headers, json={"text": text})
-    if submit.status_code != 200:
-        return {"error": f"Submit failed: {submit.status_code} — {submit.text}"}
+    submit_resp = requests.post("https://plagiarismcheck.org/api/v1/text", json=data, headers=headers)
+    if submit_resp.status_code != 200:
+        return {"error": f"❌ Submit failed: {submit_resp.status_code} – {submit_resp.text}"}
     
-    job_id = submit.json().get("id")
+    job_id = submit_resp.json()["id"]
 
-    # Step 2: Poll for completion
-    for _ in range(10):
+    # Step 2: Poll until complete
+    for _ in range(15):
         time.sleep(2)
-        status = requests.get(f"https://plagiarismcheck.org/api/v1/text/{job_id}", headers=headers)
-        if status.status_code != 200:
-            return {"error": f"Status failed: {status.status_code}"}
-        result = status.json()
+        status_resp = requests.get(f"https://plagiarismcheck.org/api/v1/text/{job_id}", headers=headers)
+        if status_resp.status_code != 200:
+            return {"error": f"❌ Status check failed: {status_resp.status_code}"}
+        
+        result = status_resp.json()
         if not result.get("checking", True):
             return {"report": result}
-    
-    return {"error": "⏳ Timeout waiting for scan to complete."}
 
-# --- UI Layout ---
-st.title("🧠 Sigma AI: Plagiarism & Paraphrasing Tool")
-tabs = st.tabs(["🔍 File Comparison", "🌐 Online Plagiarism Check", "✍️ Paraphrasing"])
+    return {"error": "⏳ Scan timed out. Try again later."}
 
-# --- Tab 1: File-to-File Comparison ---
+# --- UI STARTS HERE ---
+st.title("🧠 Sigma AI – Plagiarism & Paraphrasing Tool")
+
+tabs = st.tabs(["🔍 Compare Files", "🌐 Check Online Plagiarism", "✍️ Paraphrasing"])
+
+# --- Tab 1: Compare Files ---
 with tabs[0]:
-    st.header("📘 File-to-File Comparison")
+    st.header("📘 File-to-File Similarity Checker")
     col1, col2 = st.columns(2)
-    file1 = st.file_uploader("Upload Original File", type=["pdf", "docx", "txt"], key="file1")
-    file2 = st.file_uploader("Upload Submitted File", type=["pdf", "docx", "txt"], key="file2")
-    text1 = extract_text(file1) if file1 else st.text_area("Or paste original text", height=250)
-    text2 = extract_text(file2) if file2 else st.text_area("Or paste submitted text", height=250)
+    with col1:
+        file1 = st.file_uploader("Upload Original Document", type=["pdf", "docx", "txt"], key="file1")
+        text1 = extract_text(file1) if file1 else st.text_area("Or paste original text")
+    with col2:
+        file2 = st.file_uploader("Upload Submitted Document", type=["pdf", "docx", "txt"], key="file2")
+        text2 = extract_text(file2) if file2 else st.text_area("Or paste submitted text")
 
-    threshold = st.slider("Similarity Threshold (%)", 0, 100, 10)
+    threshold = st.slider("Paraphrasing Threshold (%)", 0, 100, 10)
 
-    if st.button("🔍 Compare Texts"):
+    if st.button("🔍 Check Similarity"):
         if text1.strip() and text2.strip():
-            score = similarity(text1, text2)
-            st.success(f"Similarity Score: **{score}%**")
+            score = get_similarity(text1, text2)
+            st.success(f"✅ Similarity Score: {score}%")
             if score >= threshold:
-                st.warning(f"⚠️ Similarity exceeds {threshold}%. Paraphrasing suggestion below:")
-                st.write(paraphrase_gemini(text2))
+                st.warning("⚠️ Similarity exceeds threshold. Suggested paraphrasing:")
+                st.write(paraphrase_text(text2))
             else:
-                st.info("Similarity is below threshold. No paraphrasing needed.")
+                st.info("✅ No paraphrasing needed.")
         else:
-            st.error("Please provide both texts.")
+            st.error("⚠️ Both texts are required.")
 
 # --- Tab 2: Online Plagiarism Check ---
 with tabs[1]:
-    st.header("🌐 Online Plagiarism Check via PlagiarismCheck.org")
-    file = st.file_uploader("Upload Document", type=["pdf", "docx", "txt"], key="plag")
-    input_text = extract_text(file) if file else st.text_area("Or paste text", height=250)
+    st.header("🌐 PlagiarismCheck.org – Online Checker")
+    file = st.file_uploader("Upload file", type=["pdf", "docx", "txt"], key="online_file")
+    text = extract_text(file) if file else st.text_area("Or paste text to check", key="online_text")
 
     if st.button("🔎 Submit to PlagiarismCheck.org"):
-        if input_text.strip():
-            with st.spinner("Submitting for plagiarism scan..."):
-                response = check_plagiarism(input_text)
+        if text.strip():
+            with st.spinner("Submitting text to PlagiarismCheck.org..."):
+                result = check_plagiarism_plagcheck(text)
 
-            if "error" in response:
-                st.error(response["error"])
+            if "error" in result:
+                st.error(result["error"])
             else:
-                report = response["report"]
-                st.success(f"✅ Similarity: {report.get('plagPercent', 0)}%")
-                st.markdown("### 🔗 Sources Found:")
+                report = result["report"]
+                st.success(f"✅ Similarity Score: {report.get('plagPercent', 0)}%")
+                st.markdown("### 📄 Sources Found:")
                 for d in report.get("details", []):
                     for w in d.get("webs", []):
                         st.markdown(f"- [{w['title']}]({w['url']})")
-                        st.markdown(f"  > {d['query']}")
+                        st.markdown(f"  > _{d['query']}_")
         else:
-            st.error("Please upload or paste text.")
+            st.error("Please upload or paste content.")
 
-# --- Tab 3: Paraphrasing Tool ---
+# --- Tab 3: Paraphrasing ---
 with tabs[2]:
-    st.header("✍️ Paraphrasing Using Gemini")
-    user_text = st.text_area("Enter text to paraphrase", height=200)
+    st.header("✍️ AI Paraphrasing via Gemini")
+    user_input = st.text_area("Enter text to paraphrase", height=200)
     if st.button("♻️ Paraphrase Now"):
-        if user_text.strip():
-            result = paraphrase_gemini(user_text)
+        if user_input.strip():
+            output = paraphrase_text(user_input)
             st.subheader("🔁 Paraphrased Output")
-            st.write(result)
+            st.write(output)
         else:
-            st.warning("Enter text to paraphrase.")
+            st.warning("Please enter text.")
