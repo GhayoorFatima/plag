@@ -3,21 +3,12 @@ from PyPDF2 import PdfReader
 import docx
 from difflib import SequenceMatcher
 import google.generativeai as genai
-import requests
-import base64
-import time
-import uuid
 
 # --- SETUP ---
 st.set_page_config(page_title="Sigma AI | Plagiarism & Paraphrasing", layout="wide")
 
-# 🔑 API Keys
-GEMINI_API_KEY = "AIzaSyCOzTWV41mYCfOva_NBI2if_M8XlKD6gOA"
-COPYLEAKS_EMAIL = "your_email@example.com"  # Replace this
-COPYLEAKS_API_KEY = "your_copyleaks_api_key"  # Replace this
-
-# Initialize Gemini
-genai.configure(api_key=GEMINI_API_KEY)
+# 🔑 API Key for Gemini
+genai.configure(api_key="AIzaSyCOzTWV41mYCfOva_NBI2if_M8XlKD6gOA")
 gemini_model = genai.GenerativeModel("gemini-1.5-flash")
 
 # --- FUNCTIONS ---
@@ -43,52 +34,18 @@ def extract_text(uploaded_file):
     else:
         return ""
 
-# --- Copyleaks Integration ---
-def get_copyleaks_token(email, api_key):
-    url = "https://id.copyleaks.com/v3/account/login/api"
-    payload = {
-        "email": email,
-        "key": api_key
-    }
-    response = requests.post(url, json=payload)
-    response.raise_for_status()
-    return response.json()["access_token"]
-
-def submit_text_to_copyleaks(access_token, text):
-    scan_id = str(uuid.uuid4())
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "base64": base64.b64encode(text.encode()).decode(),
-        "properties": {
-            "includeHtml": False,
-            "sandbox": True  # Optional: Remove in production
-        }
-    }
-    url = f"https://api.copyleaks.com/v3/scans/submit/{scan_id}"
-    response = requests.put(url, headers=headers, json=payload)
-    response.raise_for_status()
-    return scan_id
-
-def get_copyleaks_result(access_token, scan_id):
-    headers = {
-        "Authorization": f"Bearer {access_token}"
-    }
-    url = f"https://api.copyleaks.com/v3/scans/{scan_id}/result"
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        return response.json()
-    elif response.status_code == 404:
-        return None  # Still processing
-    else:
-        raise Exception(f"Error: {response.status_code} - {response.text}")
+def ai_plagiarism_check(text):
+    try:
+        prompt = f"Analyze the following text and tell me if it appears to be plagiarized from known online content. Be honest and detailed.\n\n{text}"
+        response = gemini_model.generate_content(prompt)
+        return response.text.strip()
+    except Exception as e:
+        return f"⚠️ AI plagiarism analysis failed: {e}"
 
 # --- UI STARTS HERE ---
 st.title("🧠 Sigma AI – Plagiarism & Paraphrasing Tool")
 
-tabs = st.tabs(["🔍 Compare Files", "🌐 Check Online Plagiarism", "✍️ Paraphrasing"])
+tabs = st.tabs(["🔍 Compare Files", "🌐 AI Online Plagiarism Check", "✍️ Paraphrasing"])
 
 # --- Tab 1: File-to-File Similarity ---
 with tabs[0]:
@@ -115,34 +72,20 @@ with tabs[0]:
         else:
             st.error("⚠️ Both texts are required.")
 
-# --- Tab 2: Copyleaks Plagiarism Check ---
+# --- Tab 2: AI-Based Online Plagiarism Check ---
 with tabs[1]:
-    st.header("🌐 Copyleaks – Online Plagiarism Checker")
-    file = st.file_uploader("Upload file", type=["pdf", "docx", "txt"], key="online_file")
-    text = extract_text(file) if file else st.text_area("Or paste text to check", key="online_text")
+    st.header("🌐 AI-Based Online Plagiarism Check (via Gemini)")
+    file = st.file_uploader("Upload file", type=["pdf", "docx", "txt"], key="ai_file")
+    text = extract_text(file) if file else st.text_area("Or paste text to check", key="ai_text")
 
-    if st.button("🔎 Submit to Copyleaks"):
+    if st.button("🧠 Check via AI"):
         if text.strip():
-            with st.spinner("🔐 Authenticating and submitting..."):
-                try:
-                    token = get_copyleaks_token(COPYLEAKS_EMAIL, COPYLEAKS_API_KEY)
-                    scan_id = submit_text_to_copyleaks(token, text)
-                    st.success("✅ Submitted successfully! Waiting for scan results...")
-                    time.sleep(10)
-
-                    result = get_copyleaks_result(token, scan_id)
-                    if result:
-                        st.subheader("📋 Plagiarism Report")
-                        for res in result:
-                            st.write(f"🔗 Match Found: {res.get('url', 'N/A')}")
-                            st.write(f"🧠 Score: {res.get('score', 0)}%")
-                    else:
-                        st.info("⏳ Scan is still processing. Please try again shortly.")
-
-                except Exception as e:
-                    st.error(f"❌ Error: {e}")
+            with st.spinner("Analyzing with Gemini AI..."):
+                result = ai_plagiarism_check(text)
+                st.subheader("🧾 AI Analysis Result")
+                st.write(result)
         else:
-            st.error("Please upload or paste content.")
+            st.error("⚠️ Please upload or paste content.")
 
 # --- Tab 3: Paraphrasing Tool ---
 with tabs[2]:
