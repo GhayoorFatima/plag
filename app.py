@@ -7,13 +7,18 @@ import requests
 from datetime import datetime
 from fpdf import FPDF
 import tempfile
+import base64
 
 # --- Configuration ---
 st.set_page_config(page_title="Sigma AI Plagiarism & Paraphrasing", layout="wide")
+
 GOOGLE_API_KEY = "AIzaSyCOzTWV41mYCfOva_NBI2if_M8XlKD6gOA"
-WINSTON_API_KEY = "YKcg9uZSyWLnskXCvTn1SQ5la5QTkIDdBetMmSTj5f5d5cb0"
+COPYLEAKS_EMAIL = "ahtisham.asghar1122@gmail.com"  
+COPYLEAKS_API_KEY = "e7a9563c-3b50-4390-a329-20b2529beacb"  
+
 genai.configure(api_key=GOOGLE_API_KEY)
 gemini_model = genai.GenerativeModel("gemini-1.5-flash")
+
 
 # --- Functions ---
 def paraphrase_text_gemini(text):
@@ -24,8 +29,10 @@ def paraphrase_text_gemini(text):
     except Exception as e:
         return f"⚠️ Paraphrasing failed: {e}"
 
+
 def get_similarity(text1, text2):
     return round(SequenceMatcher(None, text1, text2).ratio() * 100, 2)
+
 
 def extract_text_from_file(uploaded_file):
     if uploaded_file.name.endswith(".pdf"):
@@ -39,52 +46,47 @@ def extract_text_from_file(uploaded_file):
     else:
         return "⚠️ Unsupported file format. Please upload a PDF, DOCX, or TXT file."
 
+
 def online_plagiarism_check(text):
-    url = "https://api.gowinston.ai/v2/plagiarism"
-    headers = {
-        "Authorization": f"Bearer {WINSTON_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    payload = {"text": text, "language": "en", "country": "us"}
-    resp = requests.post(url, json=payload, headers=headers)
-    if resp.status_code != 200:
-        return {"error": f"API Error: {resp.status_code} – {resp.text}"}
-    return resp.json()
+    try:
+        # Step 1: Authenticate
+        auth_url = "https://id.copyleaks.com/v3/account/login/api"
+        auth_payload = {"email": COPYLEAKS_EMAIL, "key": COPYLEAKS_API_KEY}
+        auth_resp = requests.post(auth_url, json=auth_payload)
+        if auth_resp.status_code != 200:
+            return {"error": f"Authentication Failed: {auth_resp.text}"}
+        access_token = auth_resp.json()["access_token"]
 
-def generate_plagiarism_pdf(result, text):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", "B", 16)
-    pdf.cell(0, 10, "Sigma AI Plagiarism Report", ln=True, align="C")
+        # Step 2: Submit content
+        scan_id = f"scan-{datetime.utcnow().timestamp()}"
+        scan_url = f"https://api.copyleaks.com/v3/scans/submit/{scan_id}"
+        scan_headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json"
+        }
+        scan_payload = {
+            "base64": base64.b64encode(text.encode("utf-8")).decode("utf-8"),
+            "filename": "uploaded.txt",
+            "properties": {
+                "webhooks": {
+                    "status": "https://webhook.site/your-temp-webhook"  # Optional
+                }
+            }
+        }
+        scan_resp = requests.put(scan_url, json=scan_payload, headers=scan_headers)
+        if scan_resp.status_code not in [200, 201, 202]:
+            return {"error": f"Scan submission failed: {scan_resp.text}"}
 
-    pdf.set_font("Arial", size=12)
-    pdf.ln(5)
-    pdf.cell(0, 8, f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", ln=True)
-    pdf.cell(0, 8, f"Similarity Score: {result['result']['score']}%", ln=True)
-    pdf.ln(5)
+        return {"success": f"Plagiarism scan submitted. Please check results on Copyleaks dashboard. Scan ID: {scan_id}"}
 
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 8, "Matched Sources:", ln=True)
-    pdf.set_font("Arial", size=11)
-    for src in result.get("sources", []):
-        pdf.multi_cell(0, 6,
-            f"- URL: {src['url']}\n  Title: {src.get('title','N/A')}\n  Similarity: {src['score']}%\n  Snippet: {src['plagiarismFound'][0]['sequence'] if src.get('plagiarismFound') else ''}\n"
-        )
+    except Exception as e:
+        return {"error": str(e)}
 
-    pdf.ln(3)
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 8, "Citations:", ln=True)
-    pdf.set_font("Arial", size=11)
-    for i, src in enumerate(result.get("sources", []), 1):
-        pdf.cell(0, 6, f"[{i}] {src['url']}", ln=True)
-
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
-    pdf.output(tmp.name)
-    return tmp.name
 
 # --- UI Layout ---
 st.title("🧠 AI Plagiarism Checker & Paraphrasing Tool")
 tabs = st.tabs(["🔍 File Comparison", "🌐 Online Plagiarism Check", "✍️ Paraphrasing"])
+
 
 # --- Tab 1: File vs File Comparison ---
 with tabs[0]:
@@ -112,6 +114,7 @@ with tabs[0]:
         else:
             st.error("Both inputs required.")
 
+
 # --- Tab 2: Online Plagiarism Checker ---
 with tabs[1]:
     st.header("🌐 Online Plagiarism Checker")
@@ -120,28 +123,17 @@ with tabs[1]:
 
     if st.button("Check Online Plagiarism", key="online_check"):
         if online_text.strip():
-            with st.spinner("Checking online sources..."):
+            with st.spinner("Submitting content to Copyleaks..."):
                 result = online_plagiarism_check(online_text)
 
             if "error" in result:
                 st.error(result["error"])
             else:
-                score = result["result"]["score"]
-                st.success(f"Similarity Score: **{score}%**")
-                st.subheader("🔍 Matched Sources")
-                for src in result.get("sources", []):
-                    url = src["url"]
-                    sim = src["score"]
-                    snippet = src["plagiarismFound"][0]["sequence"] if src.get("plagiarismFound") else ""
-                    st.markdown(f"- **URL:** [{url}]({url}) — {sim}% match")
-                    if snippet:
-                        st.markdown(f"  > Snippet: _{snippet}_")
-
-                pdf_path = generate_plagiarism_pdf(result, online_text)
-                with open(pdf_path, "rb") as f:
-                    st.download_button("📄 Download PDF Report", f, file_name="Sigma_Plagiarism_Report.pdf")
+                st.success(result["success"])
+                st.info("📌 Results may take time. Please visit your Copyleaks dashboard to view the full report.")
         else:
             st.error("Please upload or paste text to check.")
+
 
 # --- Tab 3: Paraphrasing Tool ---
 with tabs[2]:
