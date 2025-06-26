@@ -6,13 +6,15 @@ import google.generativeai as genai
 import requests
 import base64
 import time
+import uuid
 
 # --- SETUP ---
 st.set_page_config(page_title="Sigma AI | Plagiarism & Paraphrasing", layout="wide")
 
 # 🔑 API Keys
 GEMINI_API_KEY = "AIzaSyCOzTWV41mYCfOva_NBI2if_M8XlKD6gOA"
-COPYSCOPE_API_TOKEN = "ylxcyl2671nstrxa"
+COPYLEAKS_EMAIL = "your_email@example.com"  # Replace this
+COPYLEAKS_API_KEY = "your_copyleaks_api_key"  # Replace this
 
 # Initialize Gemini
 genai.configure(api_key=GEMINI_API_KEY)
@@ -41,21 +43,47 @@ def extract_text(uploaded_file):
     else:
         return ""
 
-# Simulated Copyscape check
-def check_plagiarism_copyscape(text):
-    try:
-        encoded_text = base64.b64encode(text.encode()).decode()
-        url = f"https://www.copyscape.com/api/?u={COPYSCOPE_API_TOKEN}&o=csearch&t={encoded_text}"
-        response = requests.get(url)
-        if response.status_code != 200:
-            return {"error": f"❌ Copyscape API Error: {response.status_code}"}
-        
-        if "<result>" in response.text:
-            return {"report": {"matches_found": True, "content": response.text}}
-        else:
-            return {"report": {"matches_found": False, "content": "No matches found."}}
-    except Exception as e:
-        return {"error": f"❌ API request failed: {e}"}
+# --- Copyleaks Integration ---
+def get_copyleaks_token(email, api_key):
+    url = "https://id.copyleaks.com/v3/account/login/api"
+    payload = {
+        "email": email,
+        "key": api_key
+    }
+    response = requests.post(url, json=payload)
+    response.raise_for_status()
+    return response.json()["access_token"]
+
+def submit_text_to_copyleaks(access_token, text):
+    scan_id = str(uuid.uuid4())
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "base64": base64.b64encode(text.encode()).decode(),
+        "properties": {
+            "includeHtml": False,
+            "sandbox": True  # Optional: Remove in production
+        }
+    }
+    url = f"https://api.copyleaks.com/v3/scans/submit/{scan_id}"
+    response = requests.put(url, headers=headers, json=payload)
+    response.raise_for_status()
+    return scan_id
+
+def get_copyleaks_result(access_token, scan_id):
+    headers = {
+        "Authorization": f"Bearer {access_token}"
+    }
+    url = f"https://api.copyleaks.com/v3/scans/{scan_id}/result"
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        return response.json()
+    elif response.status_code == 404:
+        return None  # Still processing
+    else:
+        raise Exception(f"Error: {response.status_code} - {response.text}")
 
 # --- UI STARTS HERE ---
 st.title("🧠 Sigma AI – Plagiarism & Paraphrasing Tool")
@@ -87,26 +115,32 @@ with tabs[0]:
         else:
             st.error("⚠️ Both texts are required.")
 
-# --- Tab 2: Copyscape Plagiarism Check ---
+# --- Tab 2: Copyleaks Plagiarism Check ---
 with tabs[1]:
-    st.header("🌐 Copyscape – Online Plagiarism Checker")
+    st.header("🌐 Copyleaks – Online Plagiarism Checker")
     file = st.file_uploader("Upload file", type=["pdf", "docx", "txt"], key="online_file")
     text = extract_text(file) if file else st.text_area("Or paste text to check", key="online_text")
 
-    if st.button("🔎 Submit to Copyscape"):
+    if st.button("🔎 Submit to Copyleaks"):
         if text.strip():
-            with st.spinner("Submitting text to Copyscape..."):
-                result = check_plagiarism_copyscape(text)
+            with st.spinner("🔐 Authenticating and submitting..."):
+                try:
+                    token = get_copyleaks_token(COPYLEAKS_EMAIL, COPYLEAKS_API_KEY)
+                    scan_id = submit_text_to_copyleaks(token, text)
+                    st.success("✅ Submitted successfully! Waiting for scan results...")
+                    time.sleep(10)
 
-            if "error" in result:
-                st.error(result["error"])
-            else:
-                report = result["report"]
-                if report["matches_found"]:
-                    st.success("✅ Matches found:")
-                    st.code(report["content"])
-                else:
-                    st.info("✅ No plagiarism detected.")
+                    result = get_copyleaks_result(token, scan_id)
+                    if result:
+                        st.subheader("📋 Plagiarism Report")
+                        for res in result:
+                            st.write(f"🔗 Match Found: {res.get('url', 'N/A')}")
+                            st.write(f"🧠 Score: {res.get('score', 0)}%")
+                    else:
+                        st.info("⏳ Scan is still processing. Please try again shortly.")
+
+                except Exception as e:
+                    st.error(f"❌ Error: {e}")
         else:
             st.error("Please upload or paste content.")
 
