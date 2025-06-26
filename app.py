@@ -13,8 +13,8 @@ import base64
 st.set_page_config(page_title="Sigma AI Plagiarism & Paraphrasing", layout="wide")
 
 GOOGLE_API_KEY = "your_gemini_api_key_here"
-COPYLEAKS_EMAIL = "your_email@domain.com"
-COPYLEAKS_API_KEY = "your_copyleaks_api_key_here"
+COPYLEAKS_EMAIL = "ahtisham.asghar1122@gmail.com"
+COPYLEAKS_API_KEY = "e7a9563c-3b50-4390-a329-20b2529beacb"
 
 genai.configure(api_key=GOOGLE_API_KEY)
 gemini_model = genai.GenerativeModel("gemini-1.5-flash")
