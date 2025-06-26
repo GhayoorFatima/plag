@@ -12,13 +12,12 @@ import base64
 # --- Configuration ---
 st.set_page_config(page_title="Sigma AI Plagiarism & Paraphrasing", layout="wide")
 
-GOOGLE_API_KEY = "AIzaSyCOzTWV41mYCfOva_NBI2if_M8XlKD6gOA"
-COPYLEAKS_EMAIL = "ahtisham.asghar1122@gmail.com"  
-COPYLEAKS_API_KEY = "e7a9563c-3b50-4390-a329-20b2529beacb"  
+GOOGLE_API_KEY = "your_gemini_api_key_here"
+COPYLEAKS_EMAIL = "your_email@domain.com"
+COPYLEAKS_API_KEY = "your_copyleaks_api_key_here"
 
 genai.configure(api_key=GOOGLE_API_KEY)
 gemini_model = genai.GenerativeModel("gemini-1.5-flash")
-
 
 # --- Functions ---
 def paraphrase_text_gemini(text):
@@ -29,10 +28,8 @@ def paraphrase_text_gemini(text):
     except Exception as e:
         return f"⚠️ Paraphrasing failed: {e}"
 
-
 def get_similarity(text1, text2):
     return round(SequenceMatcher(None, text1, text2).ratio() * 100, 2)
-
 
 def extract_text_from_file(uploaded_file):
     if uploaded_file.name.endswith(".pdf"):
@@ -46,7 +43,6 @@ def extract_text_from_file(uploaded_file):
     else:
         return "⚠️ Unsupported file format. Please upload a PDF, DOCX, or TXT file."
 
-
 def online_plagiarism_check(text):
     try:
         # Step 1: Authenticate
@@ -57,92 +53,87 @@ def online_plagiarism_check(text):
             return {"error": f"Authentication Failed: {auth_resp.text}"}
         access_token = auth_resp.json()["access_token"]
 
-        # Step 2: Submit content
+        # Step 2: Prepare scan
         scan_id = f"scan-{datetime.utcnow().timestamp()}"
         scan_url = f"https://api.copyleaks.com/v3/scans/submit/{scan_id}"
         scan_headers = {
             "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json"
         }
+        base64_content = base64.b64encode(text.encode("utf-8")).decode("utf-8")
+
         scan_payload = {
-            "base64": base64.b64encode(text.encode("utf-8")).decode("utf-8"),
-            "filename": "uploaded.txt",
-            "properties": {
-                "webhooks": {
-                    "status": "https://webhook.site/your-temp-webhook"  # Optional
-                }
-            }
+            "base64": base64_content,
+            "filename": "uploaded.txt"
         }
+
+        # Step 3: Submit scan
         scan_resp = requests.put(scan_url, json=scan_payload, headers=scan_headers)
         if scan_resp.status_code not in [200, 201, 202]:
-            return {"error": f"Scan submission failed: {scan_resp.text}"}
+            return {"error": f"Scan submission failed: {scan_resp.status_code} — {scan_resp.text}"}
 
-        return {"success": f"Plagiarism scan submitted. Please check results on Copyleaks dashboard. Scan ID: {scan_id}"}
+        return {"success": f"✅ Scan submitted successfully. Please check your Copyleaks dashboard.\nScan ID: {scan_id}"}
 
     except Exception as e:
-        return {"error": str(e)}
-
+        return {"error": f"Exception: {str(e)}"}
 
 # --- UI Layout ---
-st.title("🧠 AI Plagiarism Checker & Paraphrasing Tool")
+st.title("🧠 Sigma AI: Plagiarism Checker & Paraphrasing Tool")
 tabs = st.tabs(["🔍 File Comparison", "🌐 Online Plagiarism Check", "✍️ Paraphrasing"])
 
-
-# --- Tab 1: File vs File Comparison ---
+# --- Tab 1: File-to-File Comparison ---
 with tabs[0]:
-    st.header("📘 Plagiarism Checker (File-to-File)")
+    st.header("📘 File-to-File Plagiarism Check")
     col1, col2 = st.columns(2)
     with col1:
-        uploaded_file1 = st.file_uploader("Upload Original Text File", type=["pdf", "docx", "txt"], key="file1")
-        text1 = extract_text_from_file(uploaded_file1) if uploaded_file1 else st.text_area("Or paste Original Text", height=250)
+        uploaded_file1 = st.file_uploader("Upload Original File", type=["pdf", "docx", "txt"], key="file1")
+        text1 = extract_text_from_file(uploaded_file1) if uploaded_file1 else st.text_area("Or paste original text", height=250)
     with col2:
-        uploaded_file2 = st.file_uploader("Upload Submitted Text File", type=["pdf", "docx", "txt"], key="file2")
-        text2 = extract_text_from_file(uploaded_file2) if uploaded_file2 else st.text_area("Or paste Submitted Text", height=250)
+        uploaded_file2 = st.file_uploader("Upload Submitted File", type=["pdf", "docx", "txt"], key="file2")
+        text2 = extract_text_from_file(uploaded_file2) if uploaded_file2 else st.text_area("Or paste submitted text", height=250)
 
-    threshold = st.slider("Set Similarity Threshold for Paraphrasing (%)", min_value=0, max_value=100, value=10, step=1)
+    threshold = st.slider("Similarity Threshold (%)", 0, 100, 10)
 
-    if st.button("🔍 Check for Plagiarism"):
+    if st.button("🔍 Check Similarity"):
         if text1.strip() and text2.strip():
             score = get_similarity(text1, text2)
             st.success(f"Similarity Score: **{score}%**")
             if score >= threshold:
-                st.warning(f"Similarity exceeds threshold of {threshold}%. Generating paraphrased version:")
-                st.subheader("💡 Paraphrased Text")
+                st.warning(f"⚠️ Similarity exceeds threshold of {threshold}%.")
+                st.subheader("💡 Suggested Paraphrased Version:")
                 st.write(paraphrase_text_gemini(text2))
             else:
-                st.info(f"Similarity is below the threshold of {threshold}%. No paraphrasing needed.")
+                st.info("Similarity below threshold. No paraphrasing needed.")
         else:
-            st.error("Both inputs required.")
+            st.error("Please provide both texts.")
 
-
-# --- Tab 2: Online Plagiarism Checker ---
+# --- Tab 2: Online Plagiarism Check ---
 with tabs[1]:
-    st.header("🌐 Online Plagiarism Checker")
-    uploaded_online = st.file_uploader("Upload Document (PDF, DOCX, TXT)", type=["pdf", "docx", "txt"], key="online")
-    online_text = extract_text_from_file(uploaded_online) if uploaded_online else st.text_area("Or paste text", height=250, key="online_text")
+    st.header("🌐 Copyleaks Online Plagiarism Check")
+    uploaded_online = st.file_uploader("Upload Document", type=["pdf", "docx", "txt"], key="online")
+    online_text = extract_text_from_file(uploaded_online) if uploaded_online else st.text_area("Or paste text", height=250)
 
-    if st.button("Check Online Plagiarism", key="online_check"):
+    if st.button("🔎 Submit to Copyleaks"):
         if online_text.strip():
-            with st.spinner("Submitting content to Copyleaks..."):
+            with st.spinner("Submitting to Copyleaks..."):
                 result = online_plagiarism_check(online_text)
 
             if "error" in result:
                 st.error(result["error"])
             else:
                 st.success(result["success"])
-                st.info("📌 Results may take time. Please visit your Copyleaks dashboard to view the full report.")
+                st.info("ℹ️ Results will appear in your Copyleaks dashboard.")
         else:
-            st.error("Please upload or paste text to check.")
-
+            st.error("Please enter or upload some text.")
 
 # --- Tab 3: Paraphrasing Tool ---
 with tabs[2]:
-    st.header("✍️ Paraphrasing Tool")
-    user_input = st.text_area("Enter text to paraphrase using Gemini", height=200)
-    if st.button("♻️ Generate Paraphrased Text"):
+    st.header("✍️ Paraphrasing with Gemini")
+    user_input = st.text_area("Enter text to paraphrase", height=200)
+    if st.button("♻️ Paraphrase Now"):
         if user_input.strip():
             output = paraphrase_text_gemini(user_input)
             st.subheader("🔁 Paraphrased Output")
             st.write(output)
         else:
-            st.warning("Please enter text to paraphrase.")
+            st.warning("Please enter some text to paraphrase.")
